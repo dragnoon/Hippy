@@ -443,6 +443,7 @@ jlong InitInstance(JNIEnv* j_env,
     if (runtime->IsDebug()) {
       std::shared_ptr<DebugDelegate> debug_delegate =
           std::make_shared<DebugDelegate>(runtime->GetBridge());
+      debug_delegate->NotifyJavaRegisterCoreDebugDelegate();
       loader->RegisterDebugDelegate(u"http", debug_delegate);
       loader->RegisterDebugDelegate(u"https", debug_delegate);
       loader->RegisterDebugDelegate(u"debug", debug_delegate);

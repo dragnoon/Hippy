@@ -38,6 +38,7 @@ class JNIEnvironment {
     jmethodID j_fetch_resource_sync_method_id = nullptr;
     jmethodID j_get_next_sync_method_id = nullptr;
     jmethodID j_get_next_async_method_id = nullptr;
+    jmethodID j_register_core_debug_delegate_method_id = nullptr;
   };
 
  public:

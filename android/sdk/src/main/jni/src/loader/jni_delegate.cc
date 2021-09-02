@@ -316,12 +316,12 @@ jobject GetUriContentSync(JNIEnv *j_env,
   UriLoader::bytes content;
   UriLoader::RetCode ret_code = loader->RequestUntrustedContent(
       JniUtils::ToStrView(j_env, j_uri), content, UriLoader::SrcType::NotCore);
-  return JniDelegate::CreateUriResource(j_env, ret_code, content);
+  return JniDelegate::CreateJniUriResource(j_env, ret_code, content);
 }
 
-jobject JniDelegate::CreateUriResource(JNIEnv *j_env,
-                                       UriLoader::RetCode ret_code,
-                                       const UriLoader::bytes &content) {
+jobject JniDelegate::CreateJniUriResource(JNIEnv *j_env,
+                                          UriLoader::RetCode ret_code,
+                                          const UriLoader::bytes &content) {
   jobject j_ret_code = JniDelegate::CEumToJavaEnum(ret_code);
   JniDelegate::JniUriResourceWrapper wrapper = JniDelegate::GetWrapper();
   jmethodID j_constructor = j_env->GetMethodID(wrapper.j_clazz, "<init>",
@@ -331,6 +331,38 @@ jobject JniDelegate::CreateUriResource(JNIEnv *j_env,
       reinterpret_cast<jbyteArray>(j_buffer), 0, content.length(),
       reinterpret_cast<const jbyte *>(content.c_str()));
   return j_env->NewObject(wrapper.j_clazz, j_constructor, j_ret_code, j_buffer);
+}
+
+JniDelegate::JniUriResource JniDelegate::ParseJniUriResource(JNIEnv* j_env, jobject j_uri_resource) {
+  jclass j_cls = j_env->GetObjectClass(j_uri_resource);
+  jfieldID code_field = j_env->GetFieldID(j_cls, "code",
+                                          "Lcom/tencent/mtt/hippy/bridge/HippyUriResource$RetCode;");
+  jobject j_ret_code = j_env->GetObjectField(j_uri_resource, code_field);
+  RetCode ret_code = JniDelegate::JavaEnumToCEnum(j_ret_code);
+  jfieldID bytes_field = j_env->GetFieldID(j_cls, "content", "Ljava/nio/ByteBuffer;");
+  jobject j_byte_buffer = j_env->GetObjectField(j_cls, bytes_field);
+  UriLoader::bytes content;
+  if (!j_byte_buffer) {
+    return {
+      ret_code, content
+    };
+  }
+  int64_t len = (j_env)->GetDirectBufferCapacity(j_byte_buffer);
+  if (len == -1) {
+    return {
+        ret_code, content
+    };
+  }
+  void *buff = (j_env)->GetDirectBufferAddress(j_byte_buffer);
+  if (!buff) {
+    return {
+        ret_code, content
+    };
+  }
+  UriLoader::bytes str(reinterpret_cast<const char *>(buff), len);
+  return {
+    ret_code, std::move(str)
+  };
 }
 
 REGISTER_JNI("com/tencent/mtt/hippy/bridge/HippyBridgeImpl",
@@ -367,7 +399,7 @@ void GetUriContentASync(JNIEnv *j_env,
                                            UriLoader::bytes content) {
     auto instance = JNIEnvironment::GetInstance();
     JNIEnv *j_env = instance->AttachCurrentThread();
-    jobject j_uri_resource = JniDelegate::CreateUriResource(j_env, ret_code, content);
+    jobject j_uri_resource = JniDelegate::CreateJniUriResource(j_env, ret_code, content);
     jclass j_class = j_env->GetObjectClass(java_cb_->GetObj());
     if (!j_class) {
       TDF_BASE_LOG(ERROR) << "OnGetUriContentASync j_class error";

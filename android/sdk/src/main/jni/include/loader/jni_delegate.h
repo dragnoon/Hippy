@@ -30,6 +30,8 @@
 
 class JniDelegate : public hippy::base::UriLoader::Delegate {
  public:
+  using unicode_string_view = tdf::base::unicode_string_view;
+  using UriLoader = hippy::base::UriLoader;
   struct JniUriResourceWrapper {
     jclass j_clazz = nullptr;
     jobject j_success = nullptr;
@@ -43,8 +45,10 @@ class JniDelegate : public hippy::base::UriLoader::Delegate {
     jobject j_resource_not_found = nullptr;
     jobject j_timeout = nullptr;
   };
-  using unicode_string_view = tdf::base::unicode_string_view;
-  using UriLoader = hippy::base::UriLoader;
+  struct JniUriResource {
+    UriLoader::RetCode ret_code;
+    UriLoader::bytes content;
+  };
 
   JniDelegate() = default;
   virtual ~JniDelegate() = default;
@@ -70,8 +74,9 @@ class JniDelegate : public hippy::base::UriLoader::Delegate {
   static jobject CEumToJavaEnum(UriLoader::RetCode ret_code);
   static bool Init(JNIEnv* j_env);
   static bool Destroy(JNIEnv* j_env);
-  static jobject CreateUriResource(JNIEnv* j_env, UriLoader::RetCode ret_code,
-                                   const UriLoader::bytes& content);
+  static jobject CreateJniUriResource(JNIEnv* j_env, UriLoader::RetCode ret_code,
+                                      const UriLoader::bytes& content);
+  static JniUriResource ParseJniUriResource(JNIEnv* j_env, jobject j_uri_resource);
 
  private:
   std::shared_ptr<JavaRef> bridge_;

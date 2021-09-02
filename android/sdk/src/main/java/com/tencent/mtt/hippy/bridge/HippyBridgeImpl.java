@@ -272,6 +272,12 @@ public class HippyBridgeImpl implements HippyBridge, DevRemoteDebugProxy.OnRecei
       byte[] buffer, int offset, int length);
 
   public native void onResourceReady(HippyUriResource output, long runtimeId, long resId);
+
+  // c++通知java注册c++的debug拦截模块，如果c++有通知，则java所有请求需要先请求c++的拦截模块，
+  // 如果没有注册，则java所有请求还是按原有逻辑调用
+  public void notifyRegisterCoreDebugDelegate() {}
+  // java通知c++，java有注册拦截模块，则所有c++模块发起的请求，都需要先调用到java的拦截模块再走原有逻辑
+  public native void notifyCoreRegisterJavaDebugDelegate(long runtimeId);
   // java链式调用c++，获取对应的uri结果，此方法为同步方法
   public native HippyUriResource getUriContentSync(String uri, long runtimeId);
   // java链式调用c++，获取对应的uri结果，此方法为异步方法，通过NativeCallback返回给java，NativeCallback参数可以为

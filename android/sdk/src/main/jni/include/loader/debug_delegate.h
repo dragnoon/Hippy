@@ -42,9 +42,18 @@ class DebugDelegate : public hippy::base::UriLoader::Delegate {
       UriLoader::ASyncContext &ctx,
       std::function<void(UriLoader::ASyncContext&)> next);
 
+  inline bool HasJavaDebugDelegate() {
+    return has_java_debug_delegate_;
+  }
+  inline void SetJavaDebugDelegate(bool has_java_debug_delegate) {
+    has_java_debug_delegate_ = has_java_debug_delegate;
+  }
+
+  void NotifyJavaRegisterCoreDebugDelegate();
   static std::function<void(UriLoader::RetCode, UriLoader::bytes)> GetRequestCB(int64_t request_id);
   static int64_t SetRequestCB(std::function<void(UriLoader::RetCode, UriLoader::bytes)> cb);
  private:
+  bool has_java_debug_delegate_;
   std::shared_ptr<JavaRef> bridge_;
   static std::unordered_map<int64_t, std::function<void(UriLoader::RetCode, UriLoader::bytes)>>
       request_map_;

@@ -50,9 +50,9 @@ jobject GetDebugDelegateContentSync(JNIEnv *j_env,
     // todo proxy
     return j_env->CallObjectMethod(j_object, j_method_id, j_uri);
   }
-  return JniDelegate::CreateUriResource(j_env,
-                                        UriLoader::RetCode::ResourceNotFound,
-                                        UriLoader::bytes());
+  return JniDelegate::CreateJniUriResource(j_env,
+                                           UriLoader::RetCode::ResourceNotFound,
+                                           UriLoader::bytes());
 }
 
 REGISTER_JNI("com/tencent/mtt/hippy/bridge/HippyBridgeImpl",
@@ -87,7 +87,7 @@ void GetDebugDelegateAsync(JNIEnv *j_env,
   DebugDelegate::SetRequestCB([java_cb_ = std::move(java_cb)](UriLoader::RetCode ret_code,
       UriLoader::bytes content) {
     JNIEnv* j_env = JNIEnvironment::GetInstance()->AttachCurrentThread();
-    jobject uri_resource = JniDelegate::CreateUriResource(j_env, ret_code, content);
+    jobject uri_resource = JniDelegate::CreateJniUriResource(j_env, ret_code, content);
     jmethodID j_method_id = nullptr; // todo 等max定好
     j_env->CallVoidMethod(java_cb_->GetObj(), j_method_id, uri_resource);
   });
@@ -159,9 +159,54 @@ REGISTER_JNI("com/tencent/mtt/hippy/bridge/HippyBridgeImpl",
              "(Lcom/tencent/mtt/hippy/bridge/HippyUriResource;JJ)V",
              OnNextReady)
 
+void DebugDelegate::NotifyJavaRegisterCoreDebugDelegate() {
+  auto instance = JNIEnvironment::GetInstance();
+  JNIEnv* j_env = instance->AttachCurrentThread();
+  jmethodID j_method_id = instance->GetMethods().j_register_core_debug_delegate_method_id;
+  if (j_method_id) {
+    j_env->CallVoidMethod(bridge_->GetObj(), j_method_id);
+  }
+}
+
+void NotifyCoreRegisterJavaDebugDelegate(JNIEnv *j_env,
+    jobject j_object,
+    jlong j_runtime_id) {
+  TDF_BASE_DLOG(INFO) << "NotifyCoreRegisterJavaDebugDelegate j_runtime_id = "
+                      << j_runtime_id;
+  std::shared_ptr<Runtime> runtime = Runtime::Find(j_runtime_id);
+  if (!runtime) {
+    TDF_BASE_DLOG(WARNING) << "NotifyCoreRegisterJavaDebugDelegate, j_runtime_id invalid";
+    return;
+  }
+  std::shared_ptr<DebugDelegate> debug_delegate = runtime->GetDebugDelegate();
+  if (debug_delegate) {
+    debug_delegate->SetJavaDebugDelegate(true);
+  }
+}
+
+REGISTER_JNI("com/tencent/mtt/hippy/bridge/HippyBridgeImpl",
+             "notifyCoreRegisterJavaDebugDelegate",
+             "(J)V",
+             NotifyCoreRegisterJavaDebugDelegate)
+
 void DebugDelegate::RequestUntrustedContent(
     UriLoader::SyncContext &ctx,
     std::function<void(UriLoader::SyncContext&)> next) {
+  if (has_java_debug_delegate_) {
+    // 当 java 有注册 delegate 时，任何 c++ 请求都需要先询问 java 是否处理，
+    // 同时提供对应 jni 方法可以让 java 获取 c++ 后续 delegate 返回
+    auto instance = JNIEnvironment::GetInstance();
+    JNIEnv* j_env = instance->AttachCurrentThread();
+    jmethodID j_method_id = instance->GetMethods().j_get_next_sync_method_id;
+    if (j_method_id) {
+      jstring j_uri = JniUtils::StrViewToJString(j_env, ctx.uri);
+      jobject j_next_object = j_env->CallObjectMethod(bridge_->GetObj(), j_method_id, j_uri);
+      auto uri_resource = JniDelegate::ParseJniUriResource(j_env, j_next_object);
+      ctx.ret_code = uri_resource.ret_code;
+      ctx.content = std::move(uri_resource.content);
+      return;
+    }
+  }
   if (next) {
     next(ctx);
   } else {
@@ -172,6 +217,17 @@ void DebugDelegate::RequestUntrustedContent(
 void DebugDelegate::RequestUntrustedContent(
     UriLoader::ASyncContext &ctx,
     std::function<void(UriLoader::ASyncContext&)> next) {
+  if (has_java_debug_delegate_) {
+    auto instance = JNIEnvironment::GetInstance();
+    JNIEnv* j_env = instance->AttachCurrentThread();
+    jmethodID j_method_id = instance->GetMethods().j_get_next_async_method_id;
+    if (j_method_id) {
+      auto id = JniDelegate::SetRequestCB(ctx.cb);
+      jstring j_uri = JniUtils::StrViewToJString(j_env, ctx.uri);
+      j_env->CallVoidMethod(bridge_->GetObj(), j_method_id, j_uri, id);
+      return;
+    }
+  }
   if (next) {
     next(ctx);
   } else {

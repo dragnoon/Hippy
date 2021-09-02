@@ -62,6 +62,10 @@ void JNIEnvironment::Init(JavaVM* j_vm, JNIEnv* j_env) {
       j_hippy_bridge_cls, "getNextAsync",
       "(Ljava/lang/String;J)V");
 
+  wrapper_.j_register_core_debug_delegate_method_id = j_env->GetMethodID(
+      j_hippy_bridge_cls, "notifyRegisterCoreDebugDelegate",
+      "()V");
+
   j_env->DeleteLocalRef(j_hippy_bridge_cls);
 
   if (j_env->ExceptionCheck()) {

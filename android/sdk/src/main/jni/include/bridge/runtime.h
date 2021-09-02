@@ -29,6 +29,7 @@
 
 #include "core/core.h"
 #include "jni/scoped_java_ref.h"
+#include "loader/debug_delegate.h"
 #ifdef V8_HAS_INSPECTOR
 #include "inspector/v8_inspector_client_impl.h"
 #endif
@@ -55,6 +56,9 @@ class Runtime {
   }
   inline void SetEngine(std::shared_ptr<Engine> engine) { engine_ = engine; }
   inline void SetScope(std::shared_ptr<Scope> scope) { scope_ = scope; }
+  inline std::shared_ptr<DebugDelegate> GetDebugDelegate() {
+    return debug_delegate_.lock();
+  }
 
   static void Insert(std::shared_ptr<Runtime> runtime);
   static std::shared_ptr<Runtime> Find(int64_t id);
@@ -72,5 +76,6 @@ class Runtime {
   std::shared_ptr<Engine> engine_;
   std::shared_ptr<Scope> scope_;
   std::shared_ptr<hippy::napi::CtxValue> bridge_func_;
+  std::weak_ptr<DebugDelegate> debug_delegate_;
   int64_t id_;
 };
